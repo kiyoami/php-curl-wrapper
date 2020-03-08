@@ -1,0 +1,24 @@
+{
+    "name": "kiyoami/curl",
+    "description": "Simple cURL function wapper",
+    "authors": [
+        {
+            "name": "Kiyokazu Oami",
+            "email": "bignet.k@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^7.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0"
+    },
+    "autoload": {
+        "psr-4": {"Kiyoami\\Curl\\": "src/"}
+    },
+    "scripts": {
+        "test": [
+            "phpunit tests/CoreTest.php"
+        ]
+    }
+}
