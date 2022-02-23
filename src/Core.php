@@ -2,6 +2,9 @@
 
 namespace Kiyoami\Curl;
 
+use CurlHandle;
+use Throwable;
+
 /**
  * Simple cURL function wapper
  * This makes being useable PHP cURL function as an object.
@@ -13,30 +16,20 @@ class Core
 
     /**
      * cURL version
-     * @param integer|null $age
      * @return array
      */
-    public static function version(?int $age = null): array
+    public static function version(): array
     {
-        return $age ? curl_version($age) : curl_version();
+        return curl_version();
     }
 
-    /**
-     * cURL resource handle
-     * @var resource
-     */
-    private $curl;
+    /** @var CurlHandle cURL resource handle */
+    private CurlHandle|false|null $curl;
 
-    /**
-     * cURL option list
-     * @var array
-     */
+    /** @var array cURL option list */
     private $options = [];
 
-    /**
-     * cURL execution results
-     * @var boolean|string
-     */
+    /** @var boolean|string cURL execution results */
     private $results;
 
     /**
@@ -74,10 +67,7 @@ class Core
         $this->closeTemporary();
     }
 
-    /**
-     * Temporary files resource
-     * @var resource
-     */
+    /** @var resource Temporary files resource */
     private $temporary_file;
 
     /**
@@ -87,7 +77,7 @@ class Core
     private function initTemporary()
     {
         $this->temporary_file = \tmpfile();
-        curl_setopt($this->curl, CURLOPT_FILE, $this->temporary_file);
+        $this->setopt(CURLOPT_FILE, $this->temporary_file);
     }
 
     /**
@@ -96,7 +86,7 @@ class Core
      */
     private function closeTemporary()
     {
-        if ($this->temporary_file) {
+        if (is_resource($this->temporary_file) && get_resource_type($this->temporary_file) === 'stream') {
             fclose($this->temporary_file);
             $this->temporary_file = null;
         }
@@ -109,8 +99,8 @@ class Core
     public function __clone()
     {
         $this->curl = curl_copy_handle($this->curl);
-        if ($this->file) {
-            $this->file = \tmpfile();
+        if (is_resource($this->temporary_file) && get_resource_type($this->temporary_file) === 'stream') {
+            $this->temporary_file = \tmpfile();
         }
     }
 
@@ -207,10 +197,11 @@ class Core
     /**
      * Set options for cURL
      * @param array $options
+     * @param boolean|null $use_temp
      * @return self
      * @throws \Kiyoami\Curl\CurlException
      */
-    public function setoptArray(array $options): self
+    public function setoptArray(array $options, ?bool $use_temp = false): self
     {
         if (curl_setopt_array($this->curl, $options) === false) {
             throw new CurlException(curl_error($this->curl), curl_errno($this->curl));
@@ -218,6 +209,15 @@ class Core
         foreach ($options as $option => $value) {
             $this->options[$option] = $value;
         }
+
+        if ($use_temp) {
+            $this->closeTemporary();
+            if (empty($this->options[CURLOPT_RETURNTRANSFER]) && empty($this->options[CURLOPT_FILE])) {
+                // CURLOPT_RETURNTRANSFER != true and CURLOPT_FILE does not set
+                $this->initTemporary();
+            }
+        }
+
         return $this;
     }
 
@@ -227,7 +227,7 @@ class Core
      * @return self
      * @throws \Kiyoami\Curl\CurlException
      */
-    public function request(?array $options)
+    public function request(?array $options): self
     {
         if ($options) {
             $this->reset()->setoptArray($options);
@@ -258,5 +258,14 @@ class Core
         } catch (Throwable $e) {
             throw new CurlException('Temporary file access failed', self::ERROR_TEMPORARY, $e);
         }
+    }
+
+    /**
+     * Return cURL handle
+     * @return resource
+     */
+    public function getHandle()
+    {
+        return $this->curl;
     }
 }
